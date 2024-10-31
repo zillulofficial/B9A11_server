@@ -29,6 +29,13 @@ async function run() {
     const jobCollection = client.db('JobSyncDb').collection('Job')
     const bidCollection = client.db('JobSyncDb').collection('Bid')
 
+    // job related api
+
+    // loading all data
+    app.get('/jobs', async (req, res) => {
+        const result = await jobCollection.find().toArray()
+        res.send(result)
+      })
     // insert one data on the server
     app.post('/jobs', async (req, res) => {
         const data = req.body
