@@ -104,6 +104,12 @@ async function run() {
       console.log(updateBidCount);
       res.send(result)
     })
+    // loading all bids data from a single user
+    app.get('/myBids/:email', async (req, res) => {
+      const email = req.params.email
+      const result = await bidCollection.find({ email: email }).toArray();
+      res.send(result)
+    })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
