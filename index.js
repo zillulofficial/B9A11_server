@@ -58,6 +58,12 @@ async function run() {
       const result = jobCollection.insertOne(data)
       res.send(result)
     })
+    // delete one data
+    app.delete('/job/:id', async (req, res) => {
+      const id = req.params.id
+      const result = await jobCollection.deleteOne({ _id: new ObjectId(id) });
+      res.send(result)
+    })
 
     // bid related API
     // save a bid data
