@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const jwt= require('jsonwebtoken')
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const port = process.env.port || 9000
@@ -22,12 +23,34 @@ const client = new MongoClient(uri, {
     deprecationErrors: true,
   }
 });
+
+const cookieOption = {
+  httpOnly: true,
+  sameSite: process.env.NODE_ENV === "production" ? 'none' : "strict",
+  secure: process.env.NODE_ENV === "production" ? true : false
+}
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
 
     const jobCollection = client.db('JobSyncDb').collection('Job')
     const bidCollection = client.db('JobSyncDb').collection('Bid')
+
+    // jwt related API
+    app.post('/jwt', async(req, res)=>{
+      const user= req.body
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET , {expiresIn: '365d'})
+
+      res
+      .cookie('token', token, cookieOption)
+      .send({success: true})
+    })
+    // token removal after user logs out
+    app.post('/logout', async(req, res)=>{
+      const user= req.body
+      console.log("logging out: ", user);
+      res.clearCookie('token', {...cookieOption, maxAge: 0}).send({success: true})
+    })
 
     // job related api
 
@@ -107,9 +130,46 @@ async function run() {
     // loading all bids data from a single user
     app.get('/myBids/:email', async (req, res) => {
       const email = req.params.email
-      const result = await bidCollection.find({ email: email }).toArray();
+      const filter= req.query.filter
+
+      if(filter) query= { ...query, category: filter }
+      const result = await bidCollection.find(query,{ email: email }).toArray();
       res.send(result)
     })
+    
+    // pagination API\
+  // load all jobs for pagination
+  app.get('/allJobs', async (req, res) => {
+    const page= parseInt(req.query.page) -1
+    const size= parseInt(req.query.size)
+    const filter= req.query.filter
+    const sort= req.query.sort
+    const search= req.query.search
+    
+    let query= {
+      title: { $regex: search, $options: 'i' },
+    }
+
+    if(filter) query= { ...query, category: filter }
+
+    let option= {}
+    if(sort) option= {sort: {deadline : sort === 'asc' ? 1 : -1}}
+    const result = await jobCollection.find(query, option).skip(page * size).limit(size).toArray()
+    res.send(result)
+  })
+  // load all data count
+  app.get('/jobsCount', async (req, res) => {
+    const filter= req.query.filter
+    const search= req.query.search
+    
+    let query= {
+      title: { $regex: search, $options: 'i' },
+    }
+
+    if(filter) query= {category: filter}
+    const count = await jobCollection.countDocuments(query)
+    res.send({count})
+  })
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
