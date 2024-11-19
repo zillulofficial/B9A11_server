@@ -9,7 +9,7 @@ const app = express()
 
 // middlewares
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174'],
+  origin: ['https://jobsync-75774.web.app', 'https://jobsync-75774.firebaseapp.com'],
   credentials: true,
   optionsSuccessStatus: 200
 }))
@@ -72,7 +72,7 @@ async function run() {
     // job related api
 
     // loading all data
-    app.get('/jobs',verifyToken, async (req, res) => {
+    app.get('/jobs', async (req, res) => {
       const result = await jobCollection.find().toArray()
       res.send(result)
     })
@@ -191,7 +191,7 @@ async function run() {
     res.send({count})
   })
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
