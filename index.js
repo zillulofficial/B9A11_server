@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const jwt= require('jsonwebtoken')
+const cookieParser = require('cookie-parser');
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 require('dotenv').config()
 const port = process.env.port || 9000
@@ -13,6 +14,7 @@ app.use(cors({
   optionsSuccessStatus: 200
 }))
 app.use(express.json())
+app.use(cookieParser())
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.awpu5n8.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -24,10 +26,26 @@ const client = new MongoClient(uri, {
   }
 });
 
+// middlewares
 const cookieOption = {
   httpOnly: true,
   sameSite: process.env.NODE_ENV === "production" ? 'none' : "strict",
   secure: process.env.NODE_ENV === "production" ? true : false
+}
+
+const verifyToken = (req, res, next)=>{
+  const token= req?.cookies?.token
+  // console.log("token in the middleware: ", token);
+  if(!token){
+    return res.status(401).send({message: "Unauthorized access"})
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded)=>{
+    if(err){
+      return res.status(401).send({message: "Unauthorized access"})
+    }
+    req.user= decoded
+    next()
+  })
 }
 async function run() {
   try {
@@ -48,14 +66,13 @@ async function run() {
     // token removal after user logs out
     app.post('/logout', async(req, res)=>{
       const user= req.body
-      console.log("logging out: ", user);
       res.clearCookie('token', {...cookieOption, maxAge: 0}).send({success: true})
     })
 
     // job related api
 
     // loading all data
-    app.get('/jobs', async (req, res) => {
+    app.get('/jobs',verifyToken, async (req, res) => {
       const result = await jobCollection.find().toArray()
       res.send(result)
     })
@@ -66,13 +83,13 @@ async function run() {
       res.send(result)
     })
     // loading all data from a single user
-    app.get('/jobs/:email', async (req, res) => {
-      // console.log(tokenEmail);
-      const email = req.params.email
-      // if(tokenEmail !== email){
-      //   return res.status(403).send({ message: 'Forbidden Access' })
-      // }
-      const result = await jobCollection.find({ 'buyer.email': email }).toArray();
+    app.get('/jobs/:email',verifyToken, async (req, res) => {
+      // console.log(req.user.email);
+      const loggedUserEmail = req.params.email
+      if(req.user.email !== loggedUserEmail){
+        return res.status(403).send({message: "Forbidden access"})
+      }
+      const result = await jobCollection.find({ 'buyer.email': loggedUserEmail }).toArray();
       res.send(result)
     })
     // insert one data on the server
@@ -128,12 +145,16 @@ async function run() {
       res.send(result)
     })
     // loading all bids data from a single user
-    app.get('/myBids/:email', async (req, res) => {
-      const email = req.params.email
+    app.get('/myBids/:email',verifyToken, async (req, res) => {
+      const loggedUserEmail = req.params.email
       const filter= req.query.filter
 
+      if(req.user.email !== loggedUserEmail){
+        return res.status(403).send({message: "Forbidden access"})
+      }
+      let query= { }
       if(filter) query= { ...query, category: filter }
-      const result = await bidCollection.find(query,{ email: email }).toArray();
+      const result = await bidCollection.find(query,{ email: loggedUserEmail }).toArray();
       res.send(result)
     })
     
@@ -149,7 +170,6 @@ async function run() {
     let query= {
       title: { $regex: search, $options: 'i' },
     }
-
     if(filter) query= { ...query, category: filter }
 
     let option= {}
